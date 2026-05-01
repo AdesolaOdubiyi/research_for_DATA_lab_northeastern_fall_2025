@@ -1,0 +1,36 @@
+# Environments
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+myenv/
+
+# Outputs and local state
+outputs/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+logs/
+tmp/
+
+# Data: ignore everything under data/ except committed samples
+data/*
+!data/sample/
+!data/sample/**
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/

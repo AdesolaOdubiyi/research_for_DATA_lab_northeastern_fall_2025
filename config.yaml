@@ -1,0 +1,32 @@
+# Tunables for batch matching (no secrets). Paths are resolved relative to repo root.
+
+paths:
+  input_jsonl: data/sample/shows.jsonl
+  offline_vendor_fixture: data/sample/offline_vendor.json
+  output_dir: outputs
+  results_db: outputs/results.db
+  audit_db: outputs/audit.db
+  matched_csv: outputs/matched_results.csv
+  matched_json: outputs/matched_results.json
+  stats_json: outputs/stats_summary.json
+
+sqlite:
+  use_wal: true
+
+checkpointing:
+  frequency_shows: 50
+
+scraping:
+  base_delay_seconds: 1.3
+  request_timeout_seconds: 10
+  max_retries: 3
+
+matching:
+  show_similarity_threshold_percent: 90
+  parent_similarity_threshold_percent: 85
+  episode_fuzzy_high_percent: 95
+  episode_fuzzy_medium_percent: 85
+  date_tolerance_days: 2
+
+logging:
+  level: INFO
