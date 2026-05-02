@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import podcast_matcher.config as config
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_output_dir() -> None:
@@ -39,22 +42,23 @@ def is_generic_title(title: Optional[str]) -> bool:
 
 def dates_match(
     sporc_timestamp_ms: Optional[int],
-    imdb_date_dict: Optional[Dict[str, int]],
+    catalog_release_calendar: Optional[Dict[str, int]],
     tolerance_days: int,
 ) -> bool:
     """Compare podcast episode date (ms) to structured calendar fields within tolerance."""
-    if not sporc_timestamp_ms or not imdb_date_dict:
+    if not sporc_timestamp_ms or not catalog_release_calendar:
         return False
     try:
         sporc_date = datetime.fromtimestamp(sporc_timestamp_ms / 1000).date()
-        imdb_date = datetime(
-            int(imdb_date_dict["year"]),
-            int(imdb_date_dict.get("month", 1)),
-            int(imdb_date_dict.get("day", 1)),
+        catalog_date = datetime(
+            int(catalog_release_calendar["year"]),
+            int(catalog_release_calendar.get("month", 1)),
+            int(catalog_release_calendar.get("day", 1)),
         ).date()
-    except (ValueError, KeyError, TypeError):
+    except (ValueError, KeyError, TypeError) as exc:
+        logger.debug("Episode date compare skipped (malformed timestamp or calendar): %s", exc)
         return False
-    delta = abs((sporc_date - imdb_date).days)
+    delta = abs((sporc_date - catalog_date).days)
     return delta <= tolerance_days
 
 
@@ -86,14 +90,16 @@ def load_shows_from_jsonl(path: Path, audit_logger: object) -> List[Dict[str, ob
     """Group JSONL lines by ``show_rss``."""
     shows: Dict[str, Dict[str, object]] = {}
     with path.open("r", encoding="utf-8") as handle:
-        for line_num, line in enumerate(handle, 1):
-            line = line.strip()
-            if not line:
+        for line_num, text_line in enumerate(handle, 1):
+            text_line = text_line.strip()
+            if not text_line:
                 continue
             try:
-                raw = json.loads(line)
-            except json.JSONDecodeError as exc:
-                audit_logger.log_malformed_row(line_num, None, None, "json_decode_error", str(exc))
+                raw = json.loads(text_line)
+            except json.JSONDecodeError as decode_error:
+                audit_logger.log_malformed_row(
+                    line_num, None, None, "json_decode_error", str(decode_error)
+                )
                 continue
             clean, missing = extract_episode_fields(raw)
             if missing:

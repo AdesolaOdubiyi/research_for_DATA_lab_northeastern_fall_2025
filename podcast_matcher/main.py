@@ -7,13 +7,13 @@ from pathlib import Path
 
 import podcast_matcher.config as config
 from podcast_matcher.database import DatabaseManager
-from podcast_matcher.imdb_client import IMDbClient
+from podcast_matcher.catalog_client import TitleCatalogClient
 from podcast_matcher.pipeline import configure_logging, load_input_shows, process_shows
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Match podcast episode metadata to a catalog (offline fixtures by default)."
+        description="Match podcast episode metadata to a catalog (offline mode by default)."
     )
     parser.add_argument(
         "--input",
@@ -42,7 +42,7 @@ def main() -> None:
     db = DatabaseManager()
     db.init()
     shows = load_input_shows(input_path, args.format, db)
-    client = IMDbClient()
+    client = TitleCatalogClient()
     process_shows(shows, db, client, limit=args.limit)
     db.close()
 

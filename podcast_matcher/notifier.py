@@ -26,19 +26,19 @@ def send_email(subject: str, body: str) -> bool:
         logger.warning("NOTIFY_FROM / NOTIFY_TO incomplete; skip email")
         return False
     try:
-        msg = EmailMessage()
-        msg["Subject"] = subject
-        msg["From"] = mail_from
-        msg["To"] = mail_to
-        msg.set_content(body)
+        email_msg = EmailMessage()
+        email_msg["Subject"] = subject
+        email_msg["From"] = mail_from
+        email_msg["To"] = mail_to
+        email_msg.set_content(body)
         with smtplib.SMTP_SSL(host, port) as smtp:
             if user and password:
                 smtp.login(user, password)
-            smtp.send_message(msg)
+            smtp.send_message(email_msg)
         logger.info("Email sent subject=%s", subject)
         return True
-    except OSError as exc:
-        logger.error("Email failed subject=%s error=%s", subject, exc)
+    except (OSError, smtplib.SMTPException) as error:
+        logger.error("Email failed subject=%s error=%s", subject, error)
         return False
 
 

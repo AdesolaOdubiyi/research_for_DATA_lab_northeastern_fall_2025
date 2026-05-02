@@ -10,15 +10,15 @@ from pathlib import Path
 
 def count_lines(path: Path) -> int:
     """Return line count for plain text or ``*.gz`` UTF-8 text."""
-    n = 0
+    line_count = 0
     if path.suffix.lower() == ".gz":
         handle_ctx = gzip.open(path, "rt", encoding="utf-8", errors="replace")
     else:
         handle_ctx = path.open("r", encoding="utf-8", errors="replace")
     with handle_ctx as handle:
-        for _ in handle:
-            n += 1
-    return n
+        for unused_line in handle:
+            line_count += 1
+    return line_count
 
 
 def main() -> None:

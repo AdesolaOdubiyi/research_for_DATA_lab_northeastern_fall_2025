@@ -1,23 +1,23 @@
 {
   "search_by_show_name": {
     "Synthetic Demo Podcast": {
-      "hit_tconst": "tt9000001"
+      "hit_catalog_show_id": "tt9000001"
     }
   },
-  "title_pages_by_tconst": {
-    "tt9000001": "<!DOCTYPE html><html><head><meta property=\"og:title\" content=\"Synthetic Demo Podcast (Podcast Series 2019– ) - IMDb\"/><meta property=\"og:description\" content=\"A weekly podcast with episodes hosted by guests.\"/></head><body><h1 data-testid=\"hero-title-block__title\">Synthetic Demo Podcast (Podcast Series 2019– )</h1><span data-testid=\"plot-xl\">A weekly podcast with episodes hosted by guests.</span></body></html>"
+  "title_pages_by_show_id": {
+    "tt9000001": "<!DOCTYPE html><html><head><meta property=\"og:title\" content=\"Synthetic Demo Podcast (Podcast Series 2019– ) - Third-party catalog\"/><meta property=\"og:description\" content=\"A weekly podcast with episodes hosted by guests.\"/></head><body><h1 data-testid=\"hero-title-block__title\">Synthetic Demo Podcast (Podcast Series 2019– )</h1><span data-testid=\"plot-xl\">A weekly podcast with episodes hosted by guests.</span></body></html>"
   },
-  "episodes_by_show_tconst": {
+  "episodes_by_show_id": {
     "tt9000001": [
       {
-        "tconst": "tt9000010",
+        "catalog_episode_id": "tt9000010",
         "title": "Pilot welcome",
         "rating": null,
         "vote_count": null,
         "release_date": {"year": 2020, "month": 1, "day": 1}
       },
       {
-        "tconst": "tt9000011",
+        "catalog_episode_id": "tt9000011",
         "title": "Bonus Q and A",
         "rating": 8.1,
         "vote_count": 120,

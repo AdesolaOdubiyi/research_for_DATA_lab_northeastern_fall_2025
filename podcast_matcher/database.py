@@ -11,6 +11,8 @@ from typing import Dict, List, Optional
 
 import podcast_matcher.config as config
 
+EXPECTED_RESULTS_SCHEMA_VERSION: int = 1
+
 
 class DatabaseManager:
     """Operational ``results`` database plus ``audit`` trail."""
@@ -26,8 +28,44 @@ class DatabaseManager:
         if config.USE_WAL:
             self.results_conn.execute("PRAGMA journal_mode=WAL;")
             self.audit_conn.execute("PRAGMA journal_mode=WAL;")
+        self._assert_results_schema_compatible()
         self._create_results_schema()
+        self._finalize_results_schema_pragma()
         self._create_audit_schema()
+
+    def _assert_results_schema_compatible(self) -> None:
+        """Refuse to run if ``results.db`` reports a schema generation we do not support."""
+        conn = self.results_conn
+        assert conn is not None
+        row = conn.execute("PRAGMA user_version").fetchone()
+        stored_version = int(row[0]) if row is not None else 0
+        if stored_version > 0 and stored_version != EXPECTED_RESULTS_SCHEMA_VERSION:
+            raise RuntimeError(
+                f"results.db PRAGMA user_version is {stored_version}; expected "
+                f"{EXPECTED_RESULTS_SCHEMA_VERSION}. Delete {config.RESULTS_DB_PATH} and re-run."
+            )
+
+    def _finalize_results_schema_pragma(self) -> None:
+        """After ``CREATE TABLE``, stamp or verify column layout for unversioned legacy files."""
+        conn = self.results_conn
+        assert conn is not None
+        shows_table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='shows'"
+        ).fetchone()
+        if shows_table:
+            column_names = {
+                column_row[1] for column_row in conn.execute("PRAGMA table_info(shows)").fetchall()
+            }
+            if "catalog_show_id" not in column_names:
+                raise RuntimeError(
+                    "results.db shows table is missing catalog_show_id. "
+                    f"Delete {config.RESULTS_DB_PATH} and re-run."
+                )
+        row = conn.execute("PRAGMA user_version").fetchone()
+        stored_version = int(row[0]) if row is not None else 0
+        if stored_version == 0:
+            conn.execute(f"PRAGMA user_version = {EXPECTED_RESULTS_SCHEMA_VERSION}")
+            conn.commit()
 
     def _create_results_schema(self) -> None:
         conn = self.results_conn
@@ -38,7 +76,7 @@ class DatabaseManager:
                 show_rss TEXT PRIMARY KEY,
                 show_name TEXT NOT NULL,
                 spotify_show_uri TEXT,
-                imdb_tconst TEXT,
+                catalog_show_id TEXT,
                 false_positive_risk TEXT,
                 status TEXT NOT NULL,
                 last_updated TIMESTAMP
@@ -55,8 +93,8 @@ class DatabaseManager:
                 episode_url TEXT,
                 episode_date_ms INTEGER,
                 duration_seconds REAL,
-                imdb_episode_tconst TEXT,
-                imdb_rating REAL,
+                catalog_episode_id TEXT,
+                catalog_rating REAL,
                 match_type TEXT,
                 confidence REAL,
                 FOREIGN KEY (show_rss) REFERENCES shows(show_rss)
@@ -161,17 +199,17 @@ class DatabaseManager:
         self,
         show_rss: str,
         status: str,
-        imdb_tconst: Optional[str] = None,
+        catalog_show_id: Optional[str] = None,
         false_positive_risk: Optional[str] = None,
     ) -> None:
         assert self.results_conn is not None
         self.results_conn.execute(
             """
             UPDATE shows
-            SET status=?, imdb_tconst=?, false_positive_risk=?, last_updated=?
+            SET status=?, catalog_show_id=?, false_positive_risk=?, last_updated=?
             WHERE show_rss=?;
             """,
-            (status, imdb_tconst, false_positive_risk, datetime.utcnow(), show_rss),
+            (status, catalog_show_id, false_positive_risk, datetime.utcnow(), show_rss),
         )
         self.results_conn.commit()
 
@@ -179,24 +217,24 @@ class DatabaseManager:
         rows = [
             (
                 show_rss,
-                match.get("spotify_episode_uri"),
-                match["sporc_episode_name"],
-                match.get("sporc_episode_url"),
-                match.get("sporc_episode_date"),
-                match.get("sporc_duration"),
-                match.get("imdb_tconst"),
-                match.get("imdb_rating"),
-                match.get("match_type"),
-                match.get("confidence"),
+                match_row.get("spotify_episode_uri"),
+                match_row["sporc_episode_name"],
+                match_row.get("sporc_episode_url"),
+                match_row.get("sporc_episode_date"),
+                match_row.get("sporc_duration"),
+                match_row.get("catalog_episode_id"),
+                match_row.get("catalog_rating"),
+                match_row.get("match_type"),
+                match_row.get("confidence"),
             )
-            for match in matches
+            for match_row in matches
         ]
         assert self.results_conn is not None
         self.results_conn.executemany(
             """
             INSERT INTO episodes (
                 show_rss, spotify_episode_uri, episode_name, episode_url, episode_date_ms,
-                duration_seconds, imdb_episode_tconst, imdb_rating,
+                duration_seconds, catalog_episode_id, catalog_rating,
                 match_type, confidence
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
@@ -266,9 +304,9 @@ class DatabaseManager:
         assert self.results_conn is not None
         cursor = self.results_conn.execute(
             """
-            SELECT s.show_name, s.show_rss, s.spotify_show_uri, s.imdb_tconst, e.episode_name,
+            SELECT s.show_name, s.show_rss, s.spotify_show_uri, s.catalog_show_id, e.episode_name,
                    e.spotify_episode_uri, e.episode_url, e.episode_date_ms, e.duration_seconds,
-                   e.imdb_episode_tconst, e.imdb_rating, e.match_type, e.confidence
+                   e.catalog_episode_id, e.catalog_rating, e.match_type, e.confidence
             FROM episodes e
             JOIN shows s ON s.show_rss = e.show_rss;
             """
@@ -280,14 +318,14 @@ class DatabaseManager:
                     "show_name",
                     "show_rss",
                     "spotify_show_uri",
-                    "imdb_show_tconst",
+                    "catalog_show_id",
                     "episode_name",
                     "spotify_episode_uri",
                     "episode_url",
                     "episode_date_ms",
                     "duration_seconds",
-                    "imdb_episode_tconst",
-                    "imdb_rating",
+                    "catalog_episode_id",
+                    "catalog_rating",
                     "match_type",
                     "confidence",
                 ]
@@ -298,15 +336,15 @@ class DatabaseManager:
         assert self.results_conn is not None
         cursor = self.results_conn.execute(
             """
-            SELECT s.show_name, s.show_rss, s.spotify_show_uri, s.imdb_tconst, s.false_positive_risk,
+            SELECT s.show_name, s.show_rss, s.spotify_show_uri, s.catalog_show_id, s.false_positive_risk,
                    e.episode_name, e.spotify_episode_uri, e.episode_url, e.episode_date_ms,
-                   e.duration_seconds, e.imdb_episode_tconst, e.imdb_rating, e.match_type, e.confidence
+                   e.duration_seconds, e.catalog_episode_id, e.catalog_rating, e.match_type, e.confidence
             FROM episodes e
             JOIN shows s ON s.show_rss = e.show_rss;
             """
         )
-        columns = [d[0] for d in cursor.description]
-        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        columns = [col_meta[0] for col_meta in cursor.description]
+        rows = [dict(zip(columns, data_row)) for data_row in cursor.fetchall()]
         path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
 
     def save_statistics(self, summary: Dict[str, object]) -> None:
