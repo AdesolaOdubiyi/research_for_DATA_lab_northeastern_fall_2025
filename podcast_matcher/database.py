@@ -33,137 +33,6 @@ class DatabaseManager:
         self._finalize_results_schema_pragma()
         self._create_audit_schema()
 
-    def _assert_results_schema_compatible(self) -> None:
-        """Refuse to run if ``results.db`` reports a schema generation we do not support."""
-        conn = self.results_conn
-        assert conn is not None
-        row = conn.execute("PRAGMA user_version").fetchone()
-        stored_version = int(row[0]) if row is not None else 0
-        if stored_version > 0 and stored_version != EXPECTED_RESULTS_SCHEMA_VERSION:
-            raise RuntimeError(
-                f"results.db PRAGMA user_version is {stored_version}; expected "
-                f"{EXPECTED_RESULTS_SCHEMA_VERSION}. Delete {config.RESULTS_DB_PATH} and re-run."
-            )
-
-    def _finalize_results_schema_pragma(self) -> None:
-        """After ``CREATE TABLE``, stamp or verify column layout for unversioned legacy files."""
-        conn = self.results_conn
-        assert conn is not None
-        shows_table = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='shows'"
-        ).fetchone()
-        if shows_table:
-            column_names = {
-                column_row[1] for column_row in conn.execute("PRAGMA table_info(shows)").fetchall()
-            }
-            if "catalog_show_id" not in column_names:
-                raise RuntimeError(
-                    "results.db shows table is missing catalog_show_id. "
-                    f"Delete {config.RESULTS_DB_PATH} and re-run."
-                )
-        row = conn.execute("PRAGMA user_version").fetchone()
-        stored_version = int(row[0]) if row is not None else 0
-        if stored_version == 0:
-            conn.execute(f"PRAGMA user_version = {EXPECTED_RESULTS_SCHEMA_VERSION}")
-            conn.commit()
-
-    def _create_results_schema(self) -> None:
-        conn = self.results_conn
-        assert conn is not None
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS shows (
-                show_rss TEXT PRIMARY KEY,
-                show_name TEXT NOT NULL,
-                spotify_show_uri TEXT,
-                catalog_show_id TEXT,
-                false_positive_risk TEXT,
-                status TEXT NOT NULL,
-                last_updated TIMESTAMP
-            );
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS episodes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                show_rss TEXT NOT NULL,
-                spotify_episode_uri TEXT,
-                episode_name TEXT NOT NULL,
-                episode_url TEXT,
-                episode_date_ms INTEGER,
-                duration_seconds REAL,
-                catalog_episode_id TEXT,
-                catalog_rating REAL,
-                match_type TEXT,
-                confidence REAL,
-                FOREIGN KEY (show_rss) REFERENCES shows(show_rss)
-            );
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS statistics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TIMESTAMP NOT NULL,
-                shows_searched INTEGER,
-                shows_found INTEGER,
-                shows_not_found INTEGER,
-                episodes_total INTEGER,
-                episodes_matched INTEGER,
-                episodes_with_ratings INTEGER,
-                match_types TEXT,
-                false_positive_risks TEXT
-            );
-            """
-        )
-        conn.commit()
-
-    def _create_audit_schema(self) -> None:
-        conn = self.audit_conn
-        assert conn is not None
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS processing_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TIMESTAMP NOT NULL,
-                show_rss TEXT,
-                show_name TEXT,
-                stage TEXT,
-                status TEXT,
-                message TEXT,
-                error_details TEXT
-            );
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS checkpoints (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TIMESTAMP NOT NULL,
-                shows_processed INTEGER,
-                shows_found INTEGER,
-                episodes_matched INTEGER,
-                match_rate REAL,
-                false_positive_risks TEXT
-            );
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS malformed_rows (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TIMESTAMP NOT NULL,
-                line_number INTEGER,
-                show_rss TEXT,
-                show_name TEXT,
-                issue_type TEXT,
-                details TEXT
-            );
-            """
-        )
-        conn.commit()
-
     def recover_from_crash(self) -> None:
         assert self.results_conn is not None
         cur = self.results_conn.execute("SELECT show_rss FROM shows WHERE status='processing';")
@@ -376,3 +245,134 @@ class DatabaseManager:
             self.results_conn.close()
         if self.audit_conn:
             self.audit_conn.close()
+
+    def _assert_results_schema_compatible(self) -> None:
+        """Refuse to run if ``results.db`` reports a schema generation we do not support."""
+        conn = self.results_conn
+        assert conn is not None
+        row = conn.execute("PRAGMA user_version").fetchone()
+        stored_version = int(row[0]) if row is not None else 0
+        if stored_version > 0 and stored_version != EXPECTED_RESULTS_SCHEMA_VERSION:
+            raise RuntimeError(
+                f"results.db PRAGMA user_version is {stored_version}; expected "
+                f"{EXPECTED_RESULTS_SCHEMA_VERSION}. Delete {config.RESULTS_DB_PATH} and re-run."
+            )
+
+    def _finalize_results_schema_pragma(self) -> None:
+        """After ``CREATE TABLE``, stamp or verify column layout for unversioned legacy files."""
+        conn = self.results_conn
+        assert conn is not None
+        shows_table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='shows'"
+        ).fetchone()
+        if shows_table:
+            column_names = {
+                column_row[1] for column_row in conn.execute("PRAGMA table_info(shows)").fetchall()
+            }
+            if "catalog_show_id" not in column_names:
+                raise RuntimeError(
+                    "results.db shows table is missing catalog_show_id. "
+                    f"Delete {config.RESULTS_DB_PATH} and re-run."
+                )
+        row = conn.execute("PRAGMA user_version").fetchone()
+        stored_version = int(row[0]) if row is not None else 0
+        if stored_version == 0:
+            conn.execute(f"PRAGMA user_version = {EXPECTED_RESULTS_SCHEMA_VERSION}")
+            conn.commit()
+
+    def _create_results_schema(self) -> None:
+        conn = self.results_conn
+        assert conn is not None
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS shows (
+                show_rss TEXT PRIMARY KEY,
+                show_name TEXT NOT NULL,
+                spotify_show_uri TEXT,
+                catalog_show_id TEXT,
+                false_positive_risk TEXT,
+                status TEXT NOT NULL,
+                last_updated TIMESTAMP
+            );
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS episodes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                show_rss TEXT NOT NULL,
+                spotify_episode_uri TEXT,
+                episode_name TEXT NOT NULL,
+                episode_url TEXT,
+                episode_date_ms INTEGER,
+                duration_seconds REAL,
+                catalog_episode_id TEXT,
+                catalog_rating REAL,
+                match_type TEXT,
+                confidence REAL,
+                FOREIGN KEY (show_rss) REFERENCES shows(show_rss)
+            );
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS statistics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TIMESTAMP NOT NULL,
+                shows_searched INTEGER,
+                shows_found INTEGER,
+                shows_not_found INTEGER,
+                episodes_total INTEGER,
+                episodes_matched INTEGER,
+                episodes_with_ratings INTEGER,
+                match_types TEXT,
+                false_positive_risks TEXT
+            );
+            """
+        )
+        conn.commit()
+
+    def _create_audit_schema(self) -> None:
+        conn = self.audit_conn
+        assert conn is not None
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS processing_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TIMESTAMP NOT NULL,
+                show_rss TEXT,
+                show_name TEXT,
+                stage TEXT,
+                status TEXT,
+                message TEXT,
+                error_details TEXT
+            );
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS checkpoints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TIMESTAMP NOT NULL,
+                shows_processed INTEGER,
+                shows_found INTEGER,
+                episodes_matched INTEGER,
+                match_rate REAL,
+                false_positive_risks TEXT
+            );
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS malformed_rows (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TIMESTAMP NOT NULL,
+                line_number INTEGER,
+                show_rss TEXT,
+                show_name TEXT,
+                issue_type TEXT,
+                details TEXT
+            );
+            """
+        )
+        conn.commit()

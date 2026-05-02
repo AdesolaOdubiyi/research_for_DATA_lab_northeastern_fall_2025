@@ -17,11 +17,48 @@ from podcast_matcher.utils import dates_match, normalize_title
 logger = logging.getLogger(__name__)
 
 
-def _strip_catalog_page_suffix(og_title: str) -> str:
-    """Drop trailing `` - SiteName`` style suffixes common on third-party title pages."""
-    if " - " not in og_title:
-        return og_title.strip()
-    return og_title.rsplit(" - ", 1)[0].strip()
+def match_episodes(
+    sporc_episodes: List[Dict[str, object]], catalog_episodes: List[Dict[str, object]]
+) -> List[Dict[str, object]]:
+    """Match source episodes to catalog episodes (fuzzy title + optional date guard)."""
+    matched: List[Dict[str, object]] = []
+    for sporc_ep in sporc_episodes:
+        sporc_norm = normalize_title(str(sporc_ep["episode_name"]))
+        best_row, best_score = _best_catalog_row_for_episode(sporc_norm, catalog_episodes)
+        matched.append(_match_row_from_best_catalog(sporc_ep, best_row, best_score))
+    return matched
+
+
+def validate_show_match(
+    catalog_client: TitleCatalogClient,
+    catalog_show_id: str,
+    original_show_name: str,
+    recursion_depth: int = 0,
+) -> Tuple[bool, Optional[str], Optional[float], Optional[str], Optional[str]]:
+    """Validate that ``catalog_show_id`` matches the original show name."""
+    return _validate_show_match_core(
+        catalog_client,
+        catalog_show_id,
+        original_show_name,
+        recursion_depth,
+        config.SHOW_SIMILARITY_THRESHOLD,
+    )
+
+
+def validate_show_match_as_parent_series(
+    catalog_client: TitleCatalogClient,
+    catalog_show_id: str,
+    original_show_name: str,
+    recursion_depth: int,
+) -> Tuple[bool, Optional[str], Optional[float], Optional[str], Optional[str]]:
+    """Validate after resolving an episode page to its parent series."""
+    return _validate_show_match_core(
+        catalog_client,
+        catalog_show_id,
+        original_show_name,
+        recursion_depth,
+        config.PARENT_SIMILARITY_THRESHOLD,
+    )
 
 
 def score_podcast_likelihood(soup: BeautifulSoup, page_text: str) -> Tuple[bool, int, str]:
@@ -121,6 +158,13 @@ def extract_parent_show_id(soup: BeautifulSoup, current_show_id: str) -> Optiona
         if content_match:
             return content_match.group(0)
     return None
+
+
+def _strip_catalog_page_suffix(og_title: str) -> str:
+    """Drop trailing `` - SiteName`` style suffixes common on third-party title pages."""
+    if " - " not in og_title:
+        return og_title.strip()
+    return og_title.rsplit(" - ", 1)[0].strip()
 
 
 def _read_catalog_title_page(
@@ -258,38 +302,6 @@ def _validate_show_match_core(
     return True, catalog_title, similarity, false_positive_risk, catalog_show_id
 
 
-def validate_show_match(
-    catalog_client: TitleCatalogClient,
-    catalog_show_id: str,
-    original_show_name: str,
-    recursion_depth: int = 0,
-) -> Tuple[bool, Optional[str], Optional[float], Optional[str], Optional[str]]:
-    """Validate that ``catalog_show_id`` matches the original show name."""
-    return _validate_show_match_core(
-        catalog_client,
-        catalog_show_id,
-        original_show_name,
-        recursion_depth,
-        config.SHOW_SIMILARITY_THRESHOLD,
-    )
-
-
-def validate_show_match_as_parent_series(
-    catalog_client: TitleCatalogClient,
-    catalog_show_id: str,
-    original_show_name: str,
-    recursion_depth: int,
-) -> Tuple[bool, Optional[str], Optional[float], Optional[str], Optional[str]]:
-    """Validate after resolving an episode page to its parent series."""
-    return _validate_show_match_core(
-        catalog_client,
-        catalog_show_id,
-        original_show_name,
-        recursion_depth,
-        config.PARENT_SIMILARITY_THRESHOLD,
-    )
-
-
 def _best_catalog_row_for_episode(
     sporc_norm: str, catalog_episodes: List[Dict[str, object]]
 ) -> Tuple[Optional[Dict[str, object]], int]:
@@ -352,15 +364,3 @@ def _match_row_from_best_catalog(
         "match_type": match_type,
         "confidence": confidence,
     }
-
-
-def match_episodes(
-    sporc_episodes: List[Dict[str, object]], catalog_episodes: List[Dict[str, object]]
-) -> List[Dict[str, object]]:
-    """Match source episodes to catalog episodes (fuzzy title + optional date guard)."""
-    matched: List[Dict[str, object]] = []
-    for sporc_ep in sporc_episodes:
-        sporc_norm = normalize_title(str(sporc_ep["episode_name"]))
-        best_row, best_score = _best_catalog_row_for_episode(sporc_norm, catalog_episodes)
-        matched.append(_match_row_from_best_catalog(sporc_ep, best_row, best_score))
-    return matched

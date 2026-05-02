@@ -24,6 +24,42 @@ def configure_logging() -> None:
     )
 
 
+def process_shows(
+    shows: List[dict],
+    db: DatabaseManager,
+    catalog_client: TitleCatalogClient,
+    limit: Optional[int] = None,
+) -> None:
+    """Process grouped shows: search, validate, fetch episodes, match, persist."""
+    ensure_output_dir()
+    db.recover_from_crash()
+
+    if limit is not None:
+        shows = shows[:limit]
+
+    total_episodes = sum(len(show["episodes"]) for show in shows)
+    logger.info("Loaded %s shows with %s total episodes", len(shows), total_episodes)
+
+    stats = _initialize_run_stats()
+    total_shows = len(shows)
+
+    for show_index, show in enumerate(shows, 1):
+        _process_one_show(show_index, total_shows, show, db, catalog_client, stats)
+        _create_checkpoint_if_due(show_index, db, stats)
+
+    _write_summary_and_exports(db, stats)
+
+
+def load_input_shows(path: Path, format: str, db: DatabaseManager) -> List[dict]:
+    """Load grouped shows from JSONL or TSV."""
+    normalized_format = format.strip().lower()
+    if normalized_format == "jsonl":
+        return load_shows_from_jsonl(path, db)
+    if normalized_format == "tsv":
+        return load_shows_from_tsv(path, db)
+    raise ValueError(f"Unsupported format: {format}")
+
+
 def _initialize_run_stats() -> Dict[str, Any]:
     return {
         "shows_searched": 0,
@@ -259,39 +295,3 @@ def _process_one_show(
             show_rss, show_name, "error", "error", "Unhandled exception", str(error)
         )
         logger.exception("Show failed show_rss=%s", show_rss)
-
-
-def process_shows(
-    shows: List[dict],
-    db: DatabaseManager,
-    catalog_client: TitleCatalogClient,
-    limit: Optional[int] = None,
-) -> None:
-    """Process grouped shows: search, validate, fetch episodes, match, persist."""
-    ensure_output_dir()
-    db.recover_from_crash()
-
-    if limit is not None:
-        shows = shows[:limit]
-
-    total_episodes = sum(len(show["episodes"]) for show in shows)
-    logger.info("Loaded %s shows with %s total episodes", len(shows), total_episodes)
-
-    stats = _initialize_run_stats()
-    total_shows = len(shows)
-
-    for show_index, show in enumerate(shows, 1):
-        _process_one_show(show_index, total_shows, show, db, catalog_client, stats)
-        _create_checkpoint_if_due(show_index, db, stats)
-
-    _write_summary_and_exports(db, stats)
-
-
-def load_input_shows(path: Path, format: str, db: DatabaseManager) -> List[dict]:
-    """Load grouped shows from JSONL or TSV."""
-    normalized_format = format.strip().lower()
-    if normalized_format == "jsonl":
-        return load_shows_from_jsonl(path, db)
-    if normalized_format == "tsv":
-        return load_shows_from_tsv(path, db)
-    raise ValueError(f"Unsupported format: {format}")

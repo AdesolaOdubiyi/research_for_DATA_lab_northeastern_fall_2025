@@ -42,28 +42,6 @@ LIVE_REQUIRED_ENV_NAMES: Sequence[str] = (
 )
 
 
-def _graphql_episode_page_from_response(
-    response_json: Dict[str, Any],
-) -> Tuple[List[Dict[str, Any]], bool, Optional[str]]:
-    """Episode rows on this GraphQL page, whether more pages exist, and cursor for the next page."""
-    page_episodes = html_catalog.parse_graphql_episodes(response_json)
-    episodes_branch = (
-        response_json.get("data", {})
-        .get("title", {})
-        .get("episodes", {})
-        .get("episodes", {})
-    )
-    if not isinstance(episodes_branch, dict):
-        return page_episodes, False, None
-    page_info = episodes_branch.get("pageInfo", {})
-    if not isinstance(page_info, dict):
-        return page_episodes, False, None
-    has_next_page = bool(page_info.get("hasNextPage"))
-    end_cursor = page_info.get("endCursor")
-    next_cursor = str(end_cursor) if has_next_page and end_cursor else None
-    return page_episodes, has_next_page, next_cursor
-
-
 class CaptchaDetectedError(Exception):
     """Raised when a search response looks like an anti-automation challenge."""
 
@@ -85,68 +63,6 @@ class LiveCatalogSettings:
     graphql_operation_name: str
     graphql_persisted_hash: str
     graphql_variables_return_url: str
-
-
-def _truthy_env(name: str) -> bool:
-    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
-
-
-def _require_env(name: str) -> str:
-    raw_value = os.environ.get(name, "").strip()
-    if not raw_value:
-        raise ValueError(f"Missing required environment variable: {name}")
-    return raw_value
-
-
-def _validate_template_contains(template_value: str, required_placeholder: str, env_name: str) -> None:
-    if required_placeholder not in template_value:
-        raise ValueError(f"{env_name} must contain the literal substring {required_placeholder}")
-
-
-def _missing_required_env(required_names: Sequence[str]) -> List[str]:
-    return [env_name for env_name in required_names if not os.environ.get(env_name, "").strip()]
-
-
-def _load_live_settings() -> Optional[LiveCatalogSettings]:
-    """
-    Build live settings from ``CATALOG_*`` env vars.
-
-    Returns ``None`` when live mode is disabled (caller stays in offline mode).
-    Raises ``ValueError`` when live mode is enabled but any required variable is missing or invalid.
-    """
-    if not _truthy_env("CATALOG_HTTP_ENABLED"):
-        return None
-    missing = _missing_required_env(LIVE_REQUIRED_ENV_NAMES)
-    if missing:
-        raise ValueError(
-            "CATALOG_HTTP_ENABLED is set but the following variables are empty: "
-            + ", ".join(missing)
-        )
-    podcast_tpl = _require_env("CATALOG_SEARCH_URL_PODCAST_TEMPLATE")
-    _validate_template_contains(podcast_tpl, "{query}", "CATALOG_SEARCH_URL_PODCAST_TEMPLATE")
-    title_tpl = _require_env("CATALOG_TITLE_PAGE_URL_TEMPLATE")
-    _validate_template_contains(
-        title_tpl,
-        "{catalog_show_id}",
-        "CATALOG_TITLE_PAGE_URL_TEMPLATE",
-    )
-    fallback = os.environ.get("CATALOG_SEARCH_URL_FALLBACK_TEMPLATE", "").strip() or None
-    if fallback is not None and "{query}" not in fallback:
-        raise ValueError("CATALOG_SEARCH_URL_FALLBACK_TEMPLATE must contain {query} when set")
-    operation_name = (
-        os.environ.get("CATALOG_GRAPHQL_OPERATION_NAME", "").strip() or "TitleEpisodesSubPagePagination"
-    )
-    return LiveCatalogSettings(
-        search_podcast_template=podcast_tpl,
-        search_fallback_template=fallback,
-        title_page_template=title_tpl,
-        graphql_http_url=_require_env("CATALOG_GRAPHQL_HTTP_URL"),
-        http_origin_header=_require_env("CATALOG_HTTP_ORIGIN_HEADER"),
-        http_referer_header=_require_env("CATALOG_HTTP_REFERER_HEADER"),
-        graphql_operation_name=operation_name,
-        graphql_persisted_hash=_require_env("CATALOG_GRAPHQL_PERSISTED_HASH"),
-        graphql_variables_return_url=_require_env("CATALOG_GRAPHQL_VARIABLES_RETURN_URL"),
-    )
 
 
 class TitleCatalogClient:
@@ -447,3 +363,87 @@ class TitleCatalogClient:
         except OSError as unlink_error:
             logger.warning("Failed to remove abort signal file path=%s error=%s", abort_file, unlink_error)
         return True
+
+
+def _graphql_episode_page_from_response(
+    response_json: Dict[str, Any],
+) -> Tuple[List[Dict[str, Any]], bool, Optional[str]]:
+    """Episode rows on this GraphQL page, whether more pages exist, and cursor for the next page."""
+    page_episodes = html_catalog.parse_graphql_episodes(response_json)
+    episodes_branch = (
+        response_json.get("data", {})
+        .get("title", {})
+        .get("episodes", {})
+        .get("episodes", {})
+    )
+    if not isinstance(episodes_branch, dict):
+        return page_episodes, False, None
+    page_info = episodes_branch.get("pageInfo", {})
+    if not isinstance(page_info, dict):
+        return page_episodes, False, None
+    has_next_page = bool(page_info.get("hasNextPage"))
+    end_cursor = page_info.get("endCursor")
+    next_cursor = str(end_cursor) if has_next_page and end_cursor else None
+    return page_episodes, has_next_page, next_cursor
+
+
+def _truthy_env(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _require_env(name: str) -> str:
+    raw_value = os.environ.get(name, "").strip()
+    if not raw_value:
+        raise ValueError(f"Missing required environment variable: {name}")
+    return raw_value
+
+
+def _validate_template_contains(template_value: str, required_placeholder: str, env_name: str) -> None:
+    if required_placeholder not in template_value:
+        raise ValueError(f"{env_name} must contain the literal substring {required_placeholder}")
+
+
+def _missing_required_env(required_names: Sequence[str]) -> List[str]:
+    return [env_name for env_name in required_names if not os.environ.get(env_name, "").strip()]
+
+
+def _load_live_settings() -> Optional[LiveCatalogSettings]:
+    """
+    Build live settings from ``CATALOG_*`` env vars.
+
+    Returns ``None`` when live mode is disabled (caller stays in offline mode).
+    Raises ``ValueError`` when live mode is enabled but any required variable is missing or invalid.
+    """
+    if not _truthy_env("CATALOG_HTTP_ENABLED"):
+        return None
+    missing = _missing_required_env(LIVE_REQUIRED_ENV_NAMES)
+    if missing:
+        raise ValueError(
+            "CATALOG_HTTP_ENABLED is set but the following variables are empty: "
+            + ", ".join(missing)
+        )
+    podcast_tpl = _require_env("CATALOG_SEARCH_URL_PODCAST_TEMPLATE")
+    _validate_template_contains(podcast_tpl, "{query}", "CATALOG_SEARCH_URL_PODCAST_TEMPLATE")
+    title_tpl = _require_env("CATALOG_TITLE_PAGE_URL_TEMPLATE")
+    _validate_template_contains(
+        title_tpl,
+        "{catalog_show_id}",
+        "CATALOG_TITLE_PAGE_URL_TEMPLATE",
+    )
+    fallback = os.environ.get("CATALOG_SEARCH_URL_FALLBACK_TEMPLATE", "").strip() or None
+    if fallback is not None and "{query}" not in fallback:
+        raise ValueError("CATALOG_SEARCH_URL_FALLBACK_TEMPLATE must contain {query} when set")
+    operation_name = (
+        os.environ.get("CATALOG_GRAPHQL_OPERATION_NAME", "").strip() or "TitleEpisodesSubPagePagination"
+    )
+    return LiveCatalogSettings(
+        search_podcast_template=podcast_tpl,
+        search_fallback_template=fallback,
+        title_page_template=title_tpl,
+        graphql_http_url=_require_env("CATALOG_GRAPHQL_HTTP_URL"),
+        http_origin_header=_require_env("CATALOG_HTTP_ORIGIN_HEADER"),
+        http_referer_header=_require_env("CATALOG_HTTP_REFERER_HEADER"),
+        graphql_operation_name=operation_name,
+        graphql_persisted_hash=_require_env("CATALOG_GRAPHQL_PERSISTED_HASH"),
+        graphql_variables_return_url=_require_env("CATALOG_GRAPHQL_VARIABLES_RETURN_URL"),
+    )

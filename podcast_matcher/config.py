@@ -59,6 +59,46 @@ _CONFIG_LOADED: bool = False
 _CONFIG_SOURCE_PATH: Optional[Path] = None
 
 
+def load_config(path: Optional[Path] = None) -> None:
+    """Load ``config.yaml`` from repo root (or ``path``)."""
+    global _CONFIG_LOADED, _CONFIG_SOURCE_PATH
+
+    if _CONFIG_LOADED:
+        previous_path = str(_CONFIG_SOURCE_PATH) if _CONFIG_SOURCE_PATH is not None else "<unknown>"
+        requested_path = str(path) if path is not None else str(ROOT_DIR / "config.yaml")
+        raise RuntimeError(
+            "Configuration was already loaded and cannot be reloaded in-process. "
+            f"loaded_from={previous_path} requested={requested_path}"
+        )
+
+    cfg_path = path or (ROOT_DIR / "config.yaml")
+    with cfg_path.open(encoding="utf-8") as handle:
+        apply_yaml(yaml.safe_load(handle))
+    _CONFIG_LOADED = True
+    _CONFIG_SOURCE_PATH = cfg_path
+
+
+def apply_yaml(raw: Dict[str, Any]) -> None:
+    """Populate module globals from parsed YAML."""
+    paths = raw.get("paths", {})
+    sqlite = raw.get("sqlite", {})
+    checkpointing_raw = raw.get("checkpointing", {})
+    http_client = raw.get("http_client") or raw.get("scraping", {})
+    circuit_breaker_raw = raw.get("circuit_breaker", {})
+    matching_config = raw.get("matching", {})
+    show_val = raw.get("show_validation", {})
+    scoring = show_val.get("scoring", {})
+    log = raw.get("logging", {})
+
+    _apply_path_settings(paths)
+    _apply_sqlite_and_checkpoint(sqlite, checkpointing_raw)
+    _apply_http_client_settings(http_client)
+    _apply_circuit_breaker_settings(circuit_breaker_raw)
+    _apply_matching_settings(matching_config)
+    _apply_show_validation_settings(show_val, scoring)
+    _apply_logging_settings(log)
+
+
 def _apply_path_settings(paths: Dict[str, Any]) -> None:
     module_globals = globals()
 
@@ -163,43 +203,3 @@ def _apply_show_validation_settings(
 def _apply_logging_settings(log: Dict[str, Any]) -> None:
     module_globals = globals()
     module_globals["LOG_LEVEL"] = str(log.get("level", "INFO"))
-
-
-def apply_yaml(raw: Dict[str, Any]) -> None:
-    """Populate module globals from parsed YAML."""
-    paths = raw.get("paths", {})
-    sqlite = raw.get("sqlite", {})
-    checkpointing_raw = raw.get("checkpointing", {})
-    http_client = raw.get("http_client") or raw.get("scraping", {})
-    circuit_breaker_raw = raw.get("circuit_breaker", {})
-    matching_config = raw.get("matching", {})
-    show_val = raw.get("show_validation", {})
-    scoring = show_val.get("scoring", {})
-    log = raw.get("logging", {})
-
-    _apply_path_settings(paths)
-    _apply_sqlite_and_checkpoint(sqlite, checkpointing_raw)
-    _apply_http_client_settings(http_client)
-    _apply_circuit_breaker_settings(circuit_breaker_raw)
-    _apply_matching_settings(matching_config)
-    _apply_show_validation_settings(show_val, scoring)
-    _apply_logging_settings(log)
-
-
-def load_config(path: Optional[Path] = None) -> None:
-    """Load ``config.yaml`` from repo root (or ``path``)."""
-    global _CONFIG_LOADED, _CONFIG_SOURCE_PATH
-
-    if _CONFIG_LOADED:
-        previous_path = str(_CONFIG_SOURCE_PATH) if _CONFIG_SOURCE_PATH is not None else "<unknown>"
-        requested_path = str(path) if path is not None else str(ROOT_DIR / "config.yaml")
-        raise RuntimeError(
-            "Configuration was already loaded and cannot be reloaded in-process. "
-            f"loaded_from={previous_path} requested={requested_path}"
-        )
-
-    cfg_path = path or (ROOT_DIR / "config.yaml")
-    with cfg_path.open(encoding="utf-8") as handle:
-        apply_yaml(yaml.safe_load(handle))
-    _CONFIG_LOADED = True
-    _CONFIG_SOURCE_PATH = cfg_path

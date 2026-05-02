@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 
-def iter_lines(path: Path) -> Iterable[str]:
+def iterate_lines(path: Path) -> Iterable[str]:
     """Yield text lines from plain or gzip JSONL."""
     if path.suffix.lower() == ".gz":
         with gzip.open(path, "rt", encoding="utf-8", errors="replace") as handle:
@@ -36,7 +36,7 @@ def summarize_jsonl_field_coverage(path: Path, max_lines: Optional[int]) -> None
     present = Counter()
     bad_json = 0
     lines_seen = 0
-    for line_index, raw_line in enumerate(iter_lines(path), 1):
+    for line_index, raw_line in enumerate(iterate_lines(path), 1):
         if max_lines is not None and line_index > max_lines:
             break
         raw_line = raw_line.strip()
