@@ -1,14 +1,14 @@
-"""HTTP client for a third-party **title catalog** (search HTML + paginated JSON API).
+"""HTTP client for a third-party title catalog (search HTML + paginated JSON API).
 
-1. **Offline mode (default)** — Reads the bundled sample file (see ``config.yaml`` /
-   ``OFFLINE_CATALOG_SAMPLE_PATH``) so the pipeline runs with **no network** and no
+1. Offline mode (default) — Reads the bundled sample file (see ``config.yaml`` /
+   ``OFFLINE_CATALOG_SAMPLE_PATH``) so the pipeline runs with no network and no
    vendor URLs in git.
-2. **Live HTTP** — When ``CATALOG_HTTP_ENABLED=1`` and all ``CATALOG_*`` variables are set,
+2. Live HTTP — When ``CATALOG_HTTP_ENABLED=1`` and all ``CATALOG_*`` variables are set,
    performs real requests: HTML search, title page GET, and persisted-query GraphQL
-   pagination. **URLs, origins, referrers, and query hashes** come **only** from the
+   pagination. URLs, origins, referrers, and query hashes come only from the
    environment (typically a private ``.env``), never from string literals here.
 
-In **offline mode**, search results, title HTML, and episode rows come from committed
+In offline mode, search results, title HTML, and episode rows come from committed
 JSON/HTML so behavior is reproducible without calling a live site.
 """
 
@@ -67,7 +67,7 @@ class LiveCatalogSettings:
 
 class TitleCatalogClient:
     """
-    Third-party title catalog: **offline mode by default**, **live HTTP** when ``CATALOG_*``
+    Third-party title catalog: offline mode by default, live HTTP when ``CATALOG_*``
     is configured in the environment.
     """
     def __init__(self, offline_vendor_json_path: Optional[Path] = None) -> None:
