@@ -66,7 +66,7 @@ Rephonic was identified as the final viable alternative before the end of the se
 
 ---
 
-## What This Project Is Not
+## Disclaimer
 
 This is not a general-purpose podcast data pipeline. It is a research tool built for a specific dataset, a specific research question, and a specific set of platforms. The offline mode, the sample data, and the configurable env-gating are there to make the architecture reproducible and demonstrable without redistributing proprietary data or operational credentials.
 
