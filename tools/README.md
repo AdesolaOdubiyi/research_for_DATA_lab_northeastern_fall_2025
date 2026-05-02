@@ -14,13 +14,11 @@ Lightweight field-presence and basic quality stats over a JSONL export (``.gz`` 
 
 Compares a local metadata TSV (grouped by ``show_uri``) against ``outputs/results.db`` for row-count sanity and coarse reconciliation after a batch run. Helps catch partial reruns or import gaps before trusting exports.
 
-## Scripts not shipped here (tier-2 public export)
+## Scripts not shipped here
 
-During development, additional **network-backed** probes and HTML parsing experiments lived alongside this work. They are omitted from this repository so the public tree stays focused on **architecture and offline reproducibility**, without embedding third-party **operational URLs** or request recipes. Their purpose is summarized below so the research arc stays understandable.
+During development, additional network-backed probes and HTML parsing experiments lived alongside this work. They are omitted from this repository so the public tree stays focused on architecture and offline reproducibility, without embedding third-party operational URLs. Their purpose is summarized below so the research architecture stays understandable.
 
 - **`test_matcher_small_scale.py` (legacy)** — Early monolithic harness for show search, validation, and episode matching on a small subset; informed the modular package layout.
-- **Legacy HTML / GraphQL probe scripts (not shipped)** — Parser and JSON-shape checks against remote responses during integration work; superseded by **offline mode** runs in this export.
+- **Legacy HTML / GraphQL probe scripts (not shipped)** — Parser and JSON-shape checks against remote responses during integration work; superseded by offline mode runs in this export.
 - **`debug_house_of_rugby.py` (legacy)** — Single-show deep dive for a title-type edge case (episodic catalog quirks vs podcast feeds); informed matcher limitations in documentation.
 - **`graphqltest.py` / `compare_search_strategies.py` / `debug_search.py` (legacy)** — Spikes for pagination, search variants, and ranking comparisons under real traffic; informed rate limiting and circuit-breaker behavior conceptually, not as copy-paste tooling.
-
-If you maintain a **private research archive**, keep those originals there for full forensic context.
