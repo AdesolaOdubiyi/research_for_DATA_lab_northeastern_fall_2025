@@ -2,11 +2,13 @@
 
 ## About This Project
 
-This repository is the technical foundation for a production-grade data engineering pipeline built during a Fall 2025 work-study with Northeastern's DATA Lab. The challenge was to match 105,000 podcast episodes across 18,376 shows from a Spotify dataset to external rating platforms so the researchers can attempt to analyze the sentiment of podcasts on the web. This needed to be done at scale, reliably, and without losing progress across multi-day runs.
+This repository is the technical foundation for a production-grade data engineering pipeline built during my Fall 2025 work-study with Northeastern's DATA Lab. The challenge was to match 105,000 podcast episodes across 18,376 shows from a Spotify dataset to external rating platforms, so the researchers could analyze podcast sentiment online. This needed to be done at scale, reliably, and without losing progress across multi-day runs.
 
-The pipeline handles real failure modes such as circuit breaker that backs off after 25 consecutive failed API calls, Write-Ahead Logging across two SQLite databases for crash safety, and checkpointing so a 20–30 hour scraping run can resume from exactly where it stopped. The configuration values throughout reflect empirical decisions made across dozens of small-scale experiments before scaling up. For example, the request delay is set to 1.3 seconds due to testing I did against the external API after reverse engineering the graphQL payload. Similarly, the fuzzy match thresholds (90% show similarity, 85% parent series, 95%/85% episode high/medium, ±2 day date guard, 70% keyword coverage) were validated on multiple small-scale harness with manual spot-checks before larger runs.
+The pipeline handles failure modes such as a circuit breaker that backs off after 25 consecutive failed API calls, Write-Ahead Logging across two SQLite databases for crash safety, and checkpointing so a 20–30 hour scraping run can resume from exactly where it stopped. The configuration values throughout reflect empirical decisions made across dozens of small-scale experiments before scaling up. For example, the request delay is set to 1.3 seconds due to testing I did against the external API after reverse engineering the GraphQL payload. Similarly, the fuzzy match thresholds (90% show similarity, 85% parent series, 95%/85% episode high/medium, ±2 day date guard, 70% keyword coverage) were validated on multiple small-scale harnesses with manual spot-checks before larger runs.
 
-The research question led to the interesting conclusion that episode-level podcast ratings simply do not exist at scale on any platform evaluated. That finding was backed by concrete coverage numbers, cost estimates, and documented failure modes for each platform. It saved the lab months of effort chasing data that does not exist in usable form.
+The research question led to the interesting conclusion that episode-level podcast ratings simply do not exist at scale on any platform evaluated. Concrete coverage numbers, cost estimates, and documented failure modes for each platform backed that finding. It saved the lab months of effort chasing data that does not exist in usable form.
+
+The code is intentionally sanitized to adhere to the data protection policies of the external service utilized. 
 
 For the full story of what was tried, what failed, why certain pivots were made, and what the data actually showed, see [RESEARCH_NOTES.md](RESEARCH_NOTES.md).
 
@@ -93,7 +95,7 @@ Optional SMTP variables for notifications: see `.env.example`.
 
 ## Schema Notes
 
-`results.db` is stamped with `PRAGMA user_version = 1`. If startup raises a schema/version error, delete `outputs/results.db` and re-run.
+`results.db` is stamped with `PRAGMA user_version = 1`. If the startup raises a schema/version error, delete `outputs/results.db` and re-run.
 
 Show row statuses: `processing`, `pending`, `found`, `not_found`, `validation_failed`, `no_catalog_episodes`, `matching_failed`, `error`.
 
